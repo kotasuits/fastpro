@@ -385,21 +385,34 @@
         }
 
         function onScanSuccess(decodedText) {
-            if (flowData.qr) return; // Only need one QR scan
+            if (flowData.qr) return;
 
             try {
                 const data = JSON.parse(decodedText);
                 if (data.name || data.phone) {
                     flowData.qr = data;
                     updateUI();
+                    return;
                 }
-            } catch (e) {
-                // If not JSON, maybe it's raw text
-                if (decodedText.length > 10) {
-                    flowData.qr = { rawText: decodedText };
-                    updateUI();
-                }
-            }
+            } catch (e) {}
+
+            // Fallback: extract from raw text
+            const text = decodedText.trim();
+            const phMatch = text.match(/(?:(?:\+|00)?91[\s-]?)?(?:0[\s-]?)?\b(\d{5}[\s-]?\d{5}|\d{10})\b/);
+            const pinMatch = text.match(/\b(\d{6})\b/);
+            
+            let name = text;
+            if (phMatch) name = name.replace(phMatch[0], '');
+            if (pinMatch) name = name.replace(pinMatch[0], '');
+            name = name.replace(/[|\-_:;]+/g, ' ').trim().slice(0, 30);
+
+            flowData.qr = {
+                name: name || 'Parcel',
+                phone: phMatch ? phMatch[1].replace(/\D/g, '').slice(-10) : '',
+                pincode: pinMatch ? pinMatch[1] : '',
+                rawText: text
+            };
+            updateUI();
         }
 
         async function startBarcodeLoop() {
@@ -570,19 +583,27 @@
                 if (recRes.ok) {
                     const recJson = await recRes.json();
                     sha = recJson.sha;
-                    records = JSON.parse(atob(recJson.content.replace(/\n/g, '')));
+                    // Safely decode base64 with unicode support
+                    const decoded = decodeURIComponent(escape(atob(recJson.content.replace(/\n/g, ''))));
+                    records = decoded.trim() ? JSON.parse(decoded) : [];
                 }
 
                 const newRec = {
                     id: Date.now().toString(36),
                     name: flowData.qr.name || '',
                     phone: flowData.qr.phone || '',
+                    pincode: flowData.qr.pincode || '',
                     awb: flowData.barcode,
                     photoUrl: photoUrl,
+                    photoPath: `images/${fname}`,
                     uploadedAt: new Date().toISOString()
                 };
 
                 records.push(newRec);
+                
+                // Safely encode JSON with unicode support
+                const encodedContent = btoa(unescape(encodeURIComponent(JSON.stringify(records, null, 2))));
+
                 const pushRes = await fetch(`https://api.github.com/repos/${repo}/contents/records.json`, {
                     method: 'PUT',
                     headers: {
@@ -591,7 +612,7 @@
                     },
                     body: JSON.stringify({
                         message: "Update records.json via Instant Flow",
-                        content: btoa(JSON.stringify(records, null, 2)),
+                        content: encodedContent,
                         sha: sha,
                         branch: branch
                     })
