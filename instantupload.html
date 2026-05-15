@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instant Parcel Upload</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Scanner Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #6366f1;
+            --secondary: #10b981;
+            --bg: #0a0f1e;
+            --card: rgba(20, 30, 55, .78);
+            --txt: #f1f5f9;
+            --muted: #94a3b8;
+            --bdr: rgba(255, 255, 255, .09);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background: var(--bg);
+            background-image: radial-gradient(ellipse at 20% 0%, rgba(99, 102, 241, .18), transparent 50%),
+                radial-gradient(ellipse at 80% 100%, rgba(16, 185, 129, .12), transparent 50%);
+            color: var(--txt);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 16px;
+        }
+
+        nav {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        nav a {
+            color: var(--muted);
+            text-decoration: none;
+            font-weight: 600;
+            padding: 6px 12px;
+            border: 1px solid var(--bdr);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, .05);
+            transition: all .2s;
+            font-size: .8rem;
+        }
+
+        nav a.on {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+
+        .main-container {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .header {
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #818cf8, #34d399);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .scanner-card {
+            background: var(--card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--bdr);
+            border-radius: 24px;
+            padding: 15px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        #reader {
+            width: 100%;
+            aspect-ratio: 1;
+            border-radius: 18px;
+            overflow: hidden;
+            background: #000;
+            border: none !important;
+        }
+
+        /* Overlay for scanning status */
+        .scan-overlay {
+            position: absolute;
+            top: 25px;
+            left: 25px;
+            right: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .status-badge {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            padding: 8px 14px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: fit-content;
+            transition: all 0.3s ease;
+        }
+
+        .status-badge.active {
+            border-color: var(--secondary);
+            color: var(--secondary);
+            background: rgba(16, 185, 129, 0.2);
+        }
+
+        .status-badge.pending {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: rgba(99, 102, 241, 0.2);
+        }
+
+        /* Capture Controls */
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border-radius: 16px;
+            border: none;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-p {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            color: white;
+            box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-p:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .btn-p:active {
+            transform: scale(0.98);
+        }
+
+        .btn-s {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--txt);
+            border: 1px solid var(--bdr);
+        }
+
+        /* Result Panel */
+        .result-panel {
+            background: rgba(10, 15, 35, 0.6);
+            border: 1px solid var(--bdr);
+            border-radius: 18px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            font-size: 0.9rem;
+        }
+
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .result-label {
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        .result-value {
+            font-weight: 700;
+            color: #fff;
+            max-width: 60%;
+            text-align: right;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Toast */
+        #toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            padding: 12px 24px;
+            border-radius: 50px;
+            font-weight: 600;
+            z-index: 1000;
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            background: rgba(30, 41, 59, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--bdr);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            white-space: nowrap;
+        }
+
+        #toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        #toast.ok { color: #10b981; border-color: #10b981; }
+        #toast.er { color: #ef4444; border-color: #ef4444; }
+
+        /* Step Indicator */
+        .steps {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 0 5px;
+        }
+
+        .step {
+            width: 30%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            position: relative;
+        }
+
+        .step.active {
+            background: var(--primary);
+        }
+
+        .step.done {
+            background: var(--secondary);
+        }
+
+        canvas#hidden-canvas {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <nav>
+        <a href="prints/index.html">📄 Labels</a>
+        <a href="prints/scanner.html">🔍 Scanner</a>
+        <a href="prints/dispatched.html">📋 Dispatched</a>
+        <a href="uploads.html">📸 Upload Tracking</a>
+        <a href="instantupload.html" class="on">✨ Instant Upload</a>
+    </nav>
+
+    <div class="main-container">
+        <div class="header">
+            <h1>Parcel Instant Flow</h1>
+        </div>
+
+        <div class="steps">
+            <div id="step-1" class="step active"></div>
+            <div id="step-2" class="step"></div>
+            <div id="step-3" class="step"></div>
+        </div>
+
+        <div class="scanner-card">
+            <div class="scan-overlay">
+                <div id="badge-qr" class="status-badge pending">
+                    <span id="icon-qr">⏳</span>
+                    <span>Order QR: <strong id="val-qr">Waiting...</strong></span>
+                </div>
+                <div id="badge-barcode" class="status-badge pending">
+                    <span id="icon-barcode">⏳</span>
+                    <span>AWB Barcode: <strong id="val-barcode">Waiting...</strong></span>
+                </div>
+            </div>
+
+            <div id="reader"></div>
+
+            <div class="controls">
+                <button id="cap-btn" class="btn btn-p" onclick="processAll()" disabled>
+                    📸 Capture & Upload
+                </button>
+                <button class="btn btn-s" onclick="resetFlow()">
+                    🔄 Reset
+                </button>
+            </div>
+        </div>
+
+        <div id="result-info" class="result-panel" style="display: none;">
+            <div class="result-item">
+                <span class="result-label">Name</span>
+                <span id="res-name" class="result-value">-</span>
+            </div>
+            <div class="result-item">
+                <span class="result-label">Phone</span>
+                <span id="res-phone" class="result-value">-</span>
+            </div>
+            <div class="result-item">
+                <span class="result-label">AWB</span>
+                <span id="res-awb" class="result-value">-</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+    <canvas id="hidden-canvas"></canvas>
+
+    <script>
+        // CONFIG
+        const GOOGLE_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwq6qCSjSJbk3YsTDD8pjfmROmA6ab8_GqDx1sPZIWQaOpM3dN5Vr1dwcWykOE_LklUAA/exec";
+        const CFGKEY = 'ghTrackCfg';
+        const DEFAULT_GH_REPO = "kotasuits/shipment";
+        const DEFAULT_GH_BRANCH = "main";
+
+        let flowData = {
+            qr: null,
+            barcode: null,
+            photoBlob: null,
+            capturedImage: null
+        };
+
+        const html5QrCode = new Html5Qrcode("reader");
+        let isProcessing = false;
+
+        window.onload = () => {
+            startCamera();
+        };
+
+        async function startCamera() {
+            try {
+                await html5QrCode.start(
+                    { facingMode: "environment" },
+                    {
+                        fps: 20,
+                        qrbox: { width: 250, height: 250 },
+                        aspectRatio: 1.0
+                    },
+                    onScanSuccess
+                );
+                // Start a background loop for barcode detection since html5QrCode is mostly for QR
+                startBarcodeLoop();
+            } catch (err) {
+                showToast("Camera error: " + err, "er");
+            }
+        }
+
+        function onScanSuccess(decodedText) {
+            if (flowData.qr) return; // Only need one QR scan
+
+            try {
+                const data = JSON.parse(decodedText);
+                if (data.name || data.phone) {
+                    flowData.qr = data;
+                    updateUI();
+                }
+            } catch (e) {
+                // If not JSON, maybe it's raw text
+                if (decodedText.length > 10) {
+                    flowData.qr = { rawText: decodedText };
+                    updateUI();
+                }
+            }
+        }
+
+        async function startBarcodeLoop() {
+            const video = document.querySelector('#reader video');
+            if (!video) { setTimeout(startBarcodeLoop, 500); return; }
+
+            const canvas = document.getElementById('hidden-canvas');
+            const ctx = canvas.getContext('2d');
+
+            const detector = ('BarcodeDetector' in window) ? new BarcodeDetector({
+                formats: ["code_128", "code_39", "ean_13", "upc_a"]
+            }) : null;
+
+            async function loop() {
+                if (isProcessing) { requestAnimationFrame(loop); return; }
+                if (flowData.barcode) { requestAnimationFrame(loop); return; }
+
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                if (detector) {
+                    try {
+                        const barcodes = await detector.detect(canvas);
+                        if (barcodes.length > 0) {
+                            flowData.barcode = barcodes[0].rawValue;
+                            updateUI();
+                        }
+                    } catch (e) {}
+                } else {
+                    // Fallback to jsQR or manual regex (less reliable for barcodes)
+                    // For now, let's assume BarcodeDetector is available on modern Android/iOS
+                }
+
+                requestAnimationFrame(loop);
+            }
+            loop();
+        }
+
+        function updateUI() {
+            const qrBadge = document.getElementById('badge-qr');
+            const bcBadge = document.getElementById('badge-barcode');
+            const qrVal = document.getElementById('val-qr');
+            const bcVal = document.getElementById('val-barcode');
+            const capBtn = document.getElementById('cap-btn');
+            const resPanel = document.getElementById('result-info');
+
+            if (flowData.qr) {
+                qrBadge.className = "status-badge active";
+                document.getElementById('icon-qr').innerText = "✅";
+                qrVal.innerText = flowData.qr.name || "Detected";
+                document.getElementById('step-1').className = "step done";
+                document.getElementById('step-2').className = "step active";
+            }
+
+            if (flowData.barcode) {
+                bcBadge.className = "status-badge active";
+                document.getElementById('icon-barcode').innerText = "✅";
+                bcVal.innerText = flowData.barcode;
+                document.getElementById('step-2').className = "step done";
+                document.getElementById('step-3').className = "step active";
+            }
+
+            if (flowData.qr && flowData.barcode) {
+                capBtn.disabled = false;
+                resPanel.style.display = "flex";
+                document.getElementById('res-name').innerText = flowData.qr.name || "N/A";
+                document.getElementById('res-phone').innerText = flowData.qr.phone || "N/A";
+                document.getElementById('res-awb').innerText = flowData.barcode;
+            }
+        }
+
+        function resetFlow() {
+            flowData = { qr: null, barcode: null, photoBlob: null, capturedImage: null };
+            document.getElementById('badge-qr').className = "status-badge pending";
+            document.getElementById('icon-qr').innerText = "⏳";
+            document.getElementById('val-qr').innerText = "Waiting...";
+            document.getElementById('badge-barcode').className = "status-badge pending";
+            document.getElementById('icon-barcode').innerText = "⏳";
+            document.getElementById('val-barcode').innerText = "Waiting...";
+            document.getElementById('cap-btn').disabled = true;
+            document.getElementById('result-info').style.display = "none";
+            document.querySelectorAll('.step').forEach((s, i) => s.className = i === 0 ? "step active" : "step");
+            showToast("Flow reset", "ok");
+        }
+
+        async function processAll() {
+            if (isProcessing) return;
+            isProcessing = true;
+            
+            const btn = document.getElementById('cap-btn');
+            btn.innerText = "⏳ Processing...";
+            btn.disabled = true;
+
+            try {
+                // 1. Capture Photo from Video
+                const video = document.querySelector('#reader video');
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0);
+                const photoDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                
+                showToast("Uploading to Sheet...", "ok");
+
+                // 2. Upload to Google Sheets (Dispatch Log)
+                const sheetData = { ...flowData.qr, awb: flowData.barcode };
+                const formData = new URLSearchParams();
+                formData.append("data", JSON.stringify(sheetData));
+
+                const sheetRes = await fetch(GOOGLE_WEB_APP_URL, {
+                    method: "POST",
+                    body: formData
+                });
+                const sheetJson = await sheetRes.json();
+
+                if (sheetJson.status !== "success") throw new Error("Sheet upload failed: " + sheetJson.message);
+
+                showToast("Uploading Photo...", "ok");
+
+                // 3. Upload Photo to GitHub
+                const cfg = JSON.parse(localStorage.getItem(CFGKEY) || '{}');
+                const repo = cfg.repo || DEFAULT_GH_REPO;
+                const branch = cfg.branch || DEFAULT_GH_BRANCH;
+                const token = cfg.token;
+
+                if (!token) throw new Error("GitHub Token missing. Set it in Uploads page.");
+
+                const cleanPh = (flowData.qr.phone || '').replace(/\D/g, '');
+                const ph5 = cleanPh.slice(-5);
+                const cleanAwb = (flowData.barcode || '').replace(/\W/g, '');
+                const awb5 = cleanAwb.slice(-5);
+                const prefixId = ph5 || awb5 || 'xxxxx';
+                const fname = `${prefixId}_${Date.now()}.jpg`;
+
+                const base64 = photoDataUrl.split(',')[1];
+                const ghBody = {
+                    message: `Instant upload: ${fname}`,
+                    content: base64,
+                    branch: branch
+                };
+
+                const ghRes = await fetch(`https://api.github.com/repos/${repo}/contents/images/${fname}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': 'token ' + token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(ghBody)
+                });
+
+                if (!ghRes.ok) {
+                    const err = await ghRes.json();
+                    throw new Error("GitHub error: " + (err.message || ghRes.status));
+                }
+                
+                const ghData = await ghRes.json();
+                const photoUrl = `https://raw.githubusercontent.com/${repo}/${branch}/images/${fname}`;
+
+                // 4. Update records.json on GitHub
+                showToast("Finalizing...", "ok");
+                const recRes = await fetch(`https://api.github.com/repos/${repo}/contents/records.json?ref=${branch}`, {
+                    headers: { 'Authorization': 'token ' + token }
+                });
+                
+                let records = [];
+                let sha = null;
+                if (recRes.ok) {
+                    const recJson = await recRes.json();
+                    sha = recJson.sha;
+                    records = JSON.parse(atob(recJson.content.replace(/\n/g, '')));
+                }
+
+                const newRec = {
+                    id: Date.now().toString(36),
+                    name: flowData.qr.name || '',
+                    phone: flowData.qr.phone || '',
+                    awb: flowData.barcode,
+                    photoUrl: photoUrl,
+                    uploadedAt: new Date().toISOString()
+                };
+
+                records.push(newRec);
+                const pushRes = await fetch(`https://api.github.com/repos/${repo}/contents/records.json`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': 'token ' + token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: "Update records.json via Instant Flow",
+                        content: btoa(JSON.stringify(records, null, 2)),
+                        sha: sha,
+                        branch: branch
+                    })
+                });
+
+                if (!pushRes.ok) throw new Error("Failed to update records.json");
+
+                showToast("✨ Everything Saved Successfully!", "ok");
+                setTimeout(resetFlow, 2000);
+
+            } catch (err) {
+                console.error(err);
+                showToast("❌ " + err.message, "er");
+            } finally {
+                isProcessing = false;
+                btn.innerText = "📸 Capture & Upload";
+                btn.disabled = false;
+            }
+        }
+
+        function showToast(msg, type) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.className = "show " + type;
+            setTimeout(() => t.classList.remove('show'), 4000);
+        }
+    </script>
+</body>
+
+</html>
