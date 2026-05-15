@@ -368,15 +368,18 @@
 
         async function startCamera() {
             try {
-                await html5QrCode.start(
-                    { facingMode: "environment" },
-                    {
-                        fps: 20,
-                        qrbox: { width: 250, height: 250 },
-                        aspectRatio: 1.0
-                    },
-                    onScanSuccess
-                );
+                // Request high resolution video
+                const config = {
+                    fps: 20,
+                    qrbox: { width: 250, height: 250 },
+                    aspectRatio: 1.0,
+                    videoConstraints: {
+                        facingMode: "environment",
+                        width: { ideal: 4096 },
+                        height: { ideal: 2160 }
+                    }
+                };
+                await html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess);
                 // Start a background loop for barcode detection since html5QrCode is mostly for QR
                 startBarcodeLoop();
             } catch (err) {
@@ -514,7 +517,8 @@
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
                 canvas.getContext('2d').drawImage(video, 0, 0);
-                const photoDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                // Highest quality JPEG
+                const photoDataUrl = canvas.toDataURL('image/jpeg', 1.0);
                 
                 showToast("Uploading to Sheet...", "ok");
 
@@ -542,10 +546,10 @@
                 if (!token) throw new Error("GitHub Token missing. Set it in Uploads page.");
 
                 const cleanPh = (flowData.qr.phone || '').replace(/\D/g, '');
-                const ph5 = cleanPh.slice(-5);
                 const cleanAwb = (flowData.barcode || '').replace(/\W/g, '');
-                const awb5 = cleanAwb.slice(-5);
-                const prefixId = ph5 || awb5 || 'xxxxx';
+                
+                // Name photo as phone if available, else fallback to AWB or generic
+                const prefixId = cleanPh || cleanAwb || 'parcel';
                 const fname = `${prefixId}_${Date.now()}.jpg`;
 
                 const base64 = photoDataUrl.split(',')[1];
